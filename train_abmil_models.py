@@ -1,21 +1,31 @@
+import argparse
+import random
+import os
 import pandas as pd
 from sklearn.preprocessing import OrdinalEncoder
-import glob
-import random
 import numpy as np
-import os
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import h5py
 import pandas as pd
 from torch.utils.data import DataLoader
 from sklearn.metrics import roc_auc_score, balanced_accuracy_score, accuracy_score, f1_score, precision_score, recall_score, confusion_matrix, ConfusionMatrixDisplay
 from torch.nn.functional import softmax
 
-from utils import SEED, device, MultiClassificationModel, H5Dataset
-from slide_encoder_models import ABMILSlideEncoder
+from utils import device, MultiClassificationModel, H5Dataset
+
+# Training settings
+parser = argparse.ArgumentParser(description='Training 3-class ABMIL models')
+parser.add_argument('--data_root_dir', type=str, default=None, help='data directory (path to 20x_dir/40x_dir obtained with TRIDENT)')
+parser.add_argument('--results_dir', type=str, default='./eval_metrics')
+parser.add_argument('--model_dir', type=str, default='./trained_models', help='path to trained models')
+parser.add_argument('--splits_dir', type=str, default='./splits')
+parser.add_argument('--n_splits', type=int, default=len(os.listdir('./splits')))
+parser.add_argument('--df_path', type=str, default='./dummy_template.csv')
+args = parser.parse_args()
+
+model_dir = args.model_dir
 
 def fit(model, train_loader, val_loader, n_split, lr=2e-4, num_epochs=20, patience=5):
     # Training setup
@@ -56,7 +66,7 @@ def fit(model, train_loader, val_loader, n_split, lr=2e-4, num_epochs=20, patien
                 early_stop_steps = 0
                 min_val_loss = total_val_loss
                 #Saving best model
-                torch.save(model.state_dict(), f"trained_models/s_checkpoint_{model_name}_abmil_{n_split}.pt")
+                torch.save(model.state_dict(), os.path.join(model_dir, f's_checkpoint_{model_name}_abmil_{n_split}.pt'))
             if early_stop_steps > patience:
                 #Interrupting training loop
                 print('Early stopping')
@@ -94,12 +104,13 @@ def compute_eval_metrics(model, loader):
 
 if __name__ == '__main__':
     #Path to csv file with slide names, case ids and split
-    df = pd.read_csv('dummy_template.csv')
+    df = pd.read_csv(args.df_path)
+    results_dir = args.results_dir
     
     #Path to .h5 features extracted with TRIDENT
-    features_dir = '.../20x_256px_0px_overlap' #To fill
-    path_splits = 'splits'
-    n_splits = 1
+    features_dir = args.data_root_dir
+    path_splits = args.splits_dir
+    n_splits = args.n_splits
     batch_size = 64
     SEED = 1234
 
@@ -116,7 +127,7 @@ if __name__ == '__main__':
     
     for model_name in model_names:
         print(model_name)
-        if os.path.exists(f'eval_metrics/{model_name}_abmil_test.csv'):
+        if os.path.exists(os.path.join(results_dir, f'{model_name}_abmil_test.csv')):
             print(f'Skipping {model_name}')
             continue
 
@@ -127,7 +138,7 @@ if __name__ == '__main__':
         
         input_dim = input_dict[model_name]
             
-        feats_path = os.path.join(features_dir, f'features_{model_name}')
+        feats_path = os.path.join(features_dir, f'features_{model_name}_vanilla')
         
         #Loading test set
         test_loader = DataLoader(H5Dataset(feats_path, df, "test"),
@@ -154,7 +165,7 @@ if __name__ == '__main__':
 
         #Training model
         for n_split in range(n_splits):
-            if os.path.exists(f'trained_models/s_checkpoint_{model_name}_abmil_{n_split}.pt'):
+            if os.path.exists(os.path.join(model_dir, f's_checkpoint_{model_name}_abmil_{n_split}.pt')):
                 print(f'Skipping split {n_split}')
                 continue
             print(f'Split: {n_split}')
@@ -167,7 +178,7 @@ if __name__ == '__main__':
         #Evaluating previously trained models
         for i, (train_loader, val_loader) in enumerate(zip(train_loaders, val_loaders)):
             model = MultiClassificationModel(input_feature_dim=input_dim, dropout=0.2, num_classes=3).to(device)
-            model.load_state_dict(torch.load(f'trained_models/s_checkpoint_{model_name}_abmil_{i}.pt'))
+            model.load_state_dict(torch.load(os.path.join(model_dir, f's_checkpoint_{model_name}_abmil_{i}.pt')))
             model.eval()
             with torch.no_grad():
                 metrics_train = compute_eval_metrics(model, train_loader)
@@ -185,6 +196,6 @@ if __name__ == '__main__':
         df_val = pd.DataFrame(all_metrics_val, columns=col_names)
         df_test = pd.DataFrame(all_metrics_test, columns=col_names)
 
-        df_train.to_csv(f'eval_metrics/{model_name}_abmil_train.csv', index=False)
-        df_val.to_csv(f'eval_metrics/{model_name}_abmil_val.csv', index=False)
-        df_test.to_csv(f'eval_metrics/{model_name}_abmil_test.csv', index=False)
+        df_train.to_csv(os.path.join(results_dir, f'{model_name}_abmil_train.csv'), index=False)
+        df_val.to_csv(os.path.join(results_dir, f'{model_name}_abmil_val.csv'), index=False)
+        df_test.to_csv(os.path.join(results_dir, f'{model_name}_abmil_test.csv'), index=False)
