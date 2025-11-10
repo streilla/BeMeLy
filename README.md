@@ -17,6 +17,6 @@ See https://github.com/mahmoodlab/TRIDENT to extract patch features with UNI-2h 
 ## 3. Train models
 To train UNI-2h and Virchow2 models, ensure you have the correct credentials (follow error messages for instructions) and then run the following piece of code:
 ```
-python train_abmil_models.py --data_root_dir /path/to/mag_dir --results_dir ./eval_metrics --model_dir ./trained_models --splits_dir ./splits --df_path ./dummy.csv
+python train_abmil_models.py --data_root_dir /path/to/mag_dir --results_dir ./eval_metrics --model_dir ./trained_models --splits_dir ./splits --df_path ./dummy_template.csv
 ```
 
