@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 import h5py
-from slide_encoder_models import ABMILSlideEncoder
+from s_encoder_models.load import ABMILSlideEncoder
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
